@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\UpdateProjectRequest;
 use App\Project;
 use Illuminate\Http\Request;
 
@@ -9,15 +10,15 @@ class ProjectsController extends Controller
 {
     public function index()
     {
-        // dd('iam here');
-        $projects = auth()->user()->projects;
+        $projects = auth()->user()->accessibleProjects();
 
         return view('projects.index', compact('projects'));
     }
 
     public function show(Project $project)
     {
-        abort_if(auth()->id() != $project->owner_id,403);
+        $this->authorize('update', $project);
+        // abort_if(auth()->id() != $project->owner_id,403);
 
         // if(auth()->user()->isNot($project->owner)){
         //     abort(403);
@@ -36,13 +37,47 @@ class ProjectsController extends Controller
         
         $attributes = request()->validate([
             'title' => 'required', 
-            'description' => 'required'
+            'description' => 'required',
+            'notes' => 'min:3'
         ]);
+        
+        $attributes = $this->validateRequest();
 
-        // $attributes['owner_id'] = auth()->id();
+        $project = auth()->user()->projects()->create($attributes);
 
-        auth()->user()->projects()->create($attributes);
+        return redirect($project->path());
+    }
+
+    public function edit(Project $project)
+    {
+        return view('projects.edit', compact('project'));
+    }
+
+    public function update(UpdateProjectRequest $request ,Project $project)
+    {
+        // $project->update($request->validated());
+        $request->persist();
+
+        return redirect($request->project()->path());
+    }
+
+    public function destroy(Project $project)
+    {
+        $this->authorize('manage', $project);
+
+        $project->delete();
 
         return redirect('/projects');
     }
+
+    public function validateRequest()
+    {
+        return request()->validate([
+                'title' => 'sometimes|required', 
+                'description' => 'sometimes|required',
+                'notes' => 'nullable'
+        ]);
+    }
+
+    
 }
